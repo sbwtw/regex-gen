@@ -1,8 +1,12 @@
 
+use std::io;
+use std::io::Write;
 use std::convert::From;
 use std::str::Chars;
 use std::iter::Peekable;
 use std::string::ToString;
+
+use super::CodeGenerator;
 
 #[derive(Debug, PartialEq)]
 enum RegexUnit {
@@ -24,6 +28,18 @@ enum RegexAnnotation {
 pub struct RegexItem {
     unit: RegexUnit,
     annotation: RegexAnnotation,
+}
+
+impl CodeGenerator for RegexItem {
+    fn generate<W: Write>(&self, w: &mut W) -> io::Result<()> {
+        // function begin
+        writeln!(w, "fn match_regex<T: AsRef<str>>(s: T) -> bool {{")?;
+
+        // function end
+        writeln!(w, "}}")?;
+
+        Ok(())
+    }
 }
 
 impl<'s> From<&'s str> for RegexItem {
@@ -245,6 +261,13 @@ mod test {
         let r2: RegexItem = r#"a[-a\\bd\[\]0-9]+"#.into();
 
         assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn test_write() {
+        let r: RegexItem = r#"abc"#.into();
+
+        r.generate(&mut io::stdout()).unwrap();
     }
 }
 
