@@ -4,7 +4,7 @@ use std::str::Chars;
 use std::iter::Peekable;
 use std::string::ToString;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum RegexUnit {
     Character(char),
     CharacterRange(char, char),
@@ -20,7 +20,7 @@ enum RegexAnnotation {
     AnyOccurs,      // '*'
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct RegexItem {
     unit: RegexUnit,
     annotation: RegexAnnotation,
@@ -153,6 +153,39 @@ impl<'s> RegexParser<'s> {
                         _ => return Err(()),
                     }                    
                 },
+                Some('a') => {
+                    if let Some('-') = self.input.peek() {
+                        self.input.next();
+                        match self.input.next() {
+                            Some('z') => items.push(RegexUnit::CharacterRange('a', 'z')),
+                            _ => return Err(()),
+                        }
+                    } else {
+                        items.push(RegexUnit::Character('a'));
+                    }
+                },
+                Some('A') => {
+                    if let Some('-') = self.input.peek() {
+                        self.input.next();
+                        match self.input.next() {
+                            Some('Z') => items.push(RegexUnit::CharacterRange('A', 'Z')),
+                            _ => return Err(()),
+                        }
+                    } else {
+                        items.push(RegexUnit::Character('A'));
+                    }
+                },
+                Some('0') => {
+                    if let Some('-') = self.input.peek() {
+                        self.input.next();
+                        match self.input.next() {
+                            Some('9') => items.push(RegexUnit::CharacterRange('0', '9')),
+                            _ => return Err(()),
+                        }
+                    } else {
+                        items.push(RegexUnit::Character('0'));
+                    }
+                },
                 Some(']') => {
                     return Ok(RegexItem {
                         unit: RegexUnit::Characters(items),
@@ -208,9 +241,10 @@ mod test {
 
     #[test]
     fn test() {
-        let r: RegexItem = r#"a[-a\\bd\[\]\d]+"#.into();
-        println!("{:#?}", r);
-        println!("====> {}", r.to_string());
+        let r1: RegexItem = r#"a[-a\\bd\[\]\d]+"#.into();
+        let r2: RegexItem = r#"a[-a\\bd\[\]0-9]+"#.into();
+
+        assert_eq!(r1, r2);
     }
 }
 
