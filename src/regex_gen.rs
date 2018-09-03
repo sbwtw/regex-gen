@@ -146,7 +146,7 @@ impl<'s> RegexParser<'s> {
                             self.input.next();
 
                             items.push(RegexUnit::CharacterRange('0', '9'));
-                        }
+                        },
                         Some('\\') | Some('[') | Some(']') => {
                             items.push(RegexUnit::Character(self.input.next().unwrap()));
                         },
