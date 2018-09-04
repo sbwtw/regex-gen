@@ -10,10 +10,11 @@ use super::CodeGenerator;
 
 #[derive(Debug, PartialEq)]
 enum RegexUnit {
-    Character(char),
-    CharacterRange(char, char),
-    Characters(Vec<RegexUnit>),
-    Items(Vec<RegexItem>),
+    Character(u8),
+    CharacterRange(u8, u8),
+    UnitChoice(Vec<RegexUnit>),
+    ItemList(Vec<RegexItem>),
+    ItemChoice(Vec<RegexItem>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -35,6 +36,10 @@ impl CodeGenerator for RegexItem {
         // function begin
         writeln!(w, "fn match_regex<T: AsRef<str>>(s: T) -> bool {{")?;
 
+        writeln!(w, "let input = s.chars().peekable();")?;
+
+        // generate code
+
         // function end
         writeln!(w, "}}")?;
 
@@ -50,31 +55,83 @@ impl<'s> From<&'s str> for RegexItem {
     }
 }
 
+impl RegexItem {
+    fn first_characters_set(&self) -> Vec<u8> {
+        self.unit.first_characters_set()
+    }
+}
+
+impl RegexUnit {
+    fn first_characters_set(&self) -> Vec<u8> {
+        match self {
+            &RegexUnit::Character(c) => vec![c],
+            &RegexUnit::CharacterRange(s, e) => (s..(e + 1)).collect(),
+            &RegexUnit::UnitChoice(ref list) => 
+                list.iter()
+                    .map(|x| x.first_characters_set())
+                    .flatten()
+                    .collect(),
+            &RegexUnit::ItemChoice(ref list) => {
+                unimplemented!()
+                //list.iter()
+                    //.map(|x| x.first_characters_set())
+                    //.flatten()
+                    //.collect(),
+            },
+            &RegexUnit::ItemList(ref list) => {
+                let mut r = vec![];
+
+                for item in list {
+                    r.append(&mut item.first_characters_set());
+
+                    if !matches!(item.annotation, RegexAnnotation::OneOrZero | RegexAnnotation::AnyOccurs) {
+                        return r;
+                    }
+                }
+
+                r
+            }
+        }
+    }
+}
+
 impl ToString for RegexUnit {
     fn to_string(&self) -> String {
         let mut r = String::new();
 
         match self {
-            RegexUnit::Character(c) => r.push(*c),
+            RegexUnit::Character(c) => r.push(*c as char),
             RegexUnit::CharacterRange(s, e) => {
-                r.push(*s);
+                r.push(*s as char);
                 r.push('-');
-                r.push(*e);
+                r.push(*e as char);
             },
-            RegexUnit::Characters(list) => {
+            RegexUnit::UnitChoice(list) => {
                 r.push('[');
                 for i in list {
                     r.push_str(&i.to_string());
                 }
                 r.push(']');
             },
-            RegexUnit::Items(list) => {
+            RegexUnit::ItemChoice(list) => {
+                let mut it = list.iter();
+
                 r.push('(');
-                for i in list {
-                    r.push_str(&i.to_string());
+                if let Some(item) = it.next() {
+                    r.push_str(&item.to_string());
+                }
+                for item in it {
+                    r.push('|');
+                    r.push_str(&item.to_string());
                 }
                 r.push(')');
             },
+            RegexUnit::ItemList(list) => {
+                for i in list {
+                    r.push_str(&i.to_string());
+                }
+            },
+
         }
 
         r
@@ -113,10 +170,10 @@ impl<'s> RegexParser<'s> {
             items.push(item);
         }
 
-        //assert_eq!(self.parse_annotation(), RegexAnnotation::StandAlone);
+        assert_eq!(self.parse_annotation(), RegexAnnotation::StandAlone);
 
         Ok(RegexItem {
-            unit: RegexUnit::Items(items),
+            unit: RegexUnit::ItemList(items),
             annotation: RegexAnnotation::StandAlone,
         })
     }
@@ -138,7 +195,7 @@ impl<'s> RegexParser<'s> {
         let c = self.input.next().unwrap();
 
         Ok(RegexItem {
-            unit: RegexUnit::Character(c),
+            unit: RegexUnit::Character(c as u8),
             annotation: self.parse_annotation(),
         })
     }
@@ -151,7 +208,7 @@ impl<'s> RegexParser<'s> {
         if let Some('-') = self.input.peek() {
             self.input.next();
 
-            items.push(RegexUnit::Character('-'));
+            items.push(RegexUnit::Character(b'-'));
         }
 
         loop {
@@ -161,10 +218,10 @@ impl<'s> RegexParser<'s> {
                         Some('d') => {
                             self.input.next();
 
-                            items.push(RegexUnit::CharacterRange('0', '9'));
+                            items.push(RegexUnit::CharacterRange(b'0', b'9'));
                         },
                         Some('\\') | Some('[') | Some(']') => {
-                            items.push(RegexUnit::Character(self.input.next().unwrap()));
+                            items.push(RegexUnit::Character(self.input.next().unwrap() as u8));
                         },
                         _ => return Err(()),
                     }                    
@@ -173,43 +230,43 @@ impl<'s> RegexParser<'s> {
                     if let Some('-') = self.input.peek() {
                         self.input.next();
                         match self.input.next() {
-                            Some('z') => items.push(RegexUnit::CharacterRange('a', 'z')),
+                            Some('z') => items.push(RegexUnit::CharacterRange(b'a', b'z')),
                             _ => return Err(()),
                         }
                     } else {
-                        items.push(RegexUnit::Character('a'));
+                        items.push(RegexUnit::Character(b'a'));
                     }
                 },
                 Some('A') => {
                     if let Some('-') = self.input.peek() {
                         self.input.next();
                         match self.input.next() {
-                            Some('Z') => items.push(RegexUnit::CharacterRange('A', 'Z')),
+                            Some('Z') => items.push(RegexUnit::CharacterRange(b'A', b'Z')),
                             _ => return Err(()),
                         }
                     } else {
-                        items.push(RegexUnit::Character('A'));
+                        items.push(RegexUnit::Character(b'A'));
                     }
                 },
                 Some('0') => {
                     if let Some('-') = self.input.peek() {
                         self.input.next();
                         match self.input.next() {
-                            Some('9') => items.push(RegexUnit::CharacterRange('0', '9')),
+                            Some('9') => items.push(RegexUnit::CharacterRange(b'0', b'9')),
                             _ => return Err(()),
                         }
                     } else {
-                        items.push(RegexUnit::Character('0'));
+                        items.push(RegexUnit::Character(b'0'));
                     }
                 },
                 Some(']') => {
                     return Ok(RegexItem {
-                        unit: RegexUnit::Characters(items),
+                        unit: RegexUnit::UnitChoice(items),
                         annotation: self.parse_annotation(),
                     })
                 },
                 Some(c) => {
-                    items.push(RegexUnit::Character(c));
+                    items.push(RegexUnit::Character(c as u8));
                 },
                 None => return Err(()),
             }
@@ -219,18 +276,23 @@ impl<'s> RegexParser<'s> {
     fn parse_item_group(&mut self) -> RegexParserResult {
         self.input.next();
         let mut items = vec![];
+        let mut buffer = String::new();
 
         loop {
-            match self.input.peek().map(|x| x.clone()) {
+            match self.input.next() {
                 Some(')') => {
-                    self.input.next();
+                    items.push((&buffer[..]).into());
 
                     return Ok(RegexItem {
-                        unit: RegexUnit::Items(items),
+                        unit: RegexUnit::ItemChoice(items),
                         annotation: self.parse_annotation(),
                     })
                 },
-                Some(_) => items.push(self.dispatch()?),
+                Some('|') => {
+                    items.push((&buffer[..]).into());
+                    buffer.clear();
+                },
+                Some(c) => buffer.push(c),
                 None => return Err(()),
             }
         }
@@ -259,8 +321,15 @@ mod test {
     fn test() {
         let r1: RegexItem = r#"a[-a\\bd\[\]\d]+"#.into();
         let r2: RegexItem = r#"a[-a\\bd\[\]0-9]+"#.into();
-
         assert_eq!(r1, r2);
+
+        let s = r#"a(bc|de)f"#;
+        let r: RegexItem = s.into();
+        assert_eq!(r.to_string(), s);
+
+        let s = r#"a(b+[cde]*|de)f"#;
+        let r: RegexItem = s.into();
+        assert_eq!(r.to_string(), s);
     }
 
     #[test]
@@ -268,6 +337,20 @@ mod test {
         let r: RegexItem = r#"abc"#.into();
 
         r.generate(&mut io::stdout()).unwrap();
+    }
+
+    #[test]
+    fn test_first_set() {
+        let r: RegexItem = r#"a[bcd]ef"#.into();
+        assert_eq!(r.first_characters_set(), vec![b'a']);        
+
+        let r: RegexItem = r#"[bcd]ef"#.into();
+        assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd']);
+
+        //let r: RegexItem = r#"(bc|de)ef"#.into();
+        //println!("{:#?}", r);
+        //println!("===> {}", String::from_utf8_lossy(&r.first_characters_set()[..]));
+        //assert_eq!(r.first_characters_set(), vec![b'b', b'd']);        
     }
 }
 
