@@ -353,6 +353,19 @@ mod test {
 
         let r: RegexItem = r#"(b?c|[de])ef"#.into();
         assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd', b'e']);        
+
+        let r: RegexItem = r#"[\d]"#.into();
+        assert_eq!(r.first_characters_set(), vec![b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']);        
+
+        let r: RegexItem = r#"[a-z]"#.into();
+        let s = r.first_characters_set();
+        assert!(s.contains(&b'a'));
+        assert!(s.contains(&b'b'));
+        assert!(s.contains(&b'h'));
+        assert!(s.contains(&b'y'));
+        assert!(s.contains(&b'z'));
+        assert!(!s.contains(&b'0'));
+        assert!(!s.contains(&b'A'));
     }
 }
 
