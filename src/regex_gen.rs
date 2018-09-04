@@ -71,13 +71,11 @@ impl RegexUnit {
                     .map(|x| x.first_characters_set())
                     .flatten()
                     .collect(),
-            &RegexUnit::ItemChoice(ref list) => {
-                unimplemented!()
-                //list.iter()
-                    //.map(|x| x.first_characters_set())
-                    //.flatten()
-                    //.collect(),
-            },
+            &RegexUnit::ItemChoice(ref list) =>
+                list.iter()
+                    .map(|x| x.first_characters_set())
+                    .flatten()
+                    .collect(),
             &RegexUnit::ItemList(ref list) => {
                 let mut r = vec![];
 
@@ -274,7 +272,7 @@ impl<'s> RegexParser<'s> {
     }
 
     fn parse_item_group(&mut self) -> RegexParserResult {
-        self.input.next();
+        assert_eq!(Some('('), self.input.next());
         let mut items = vec![];
         let mut buffer = String::new();
 
@@ -347,10 +345,14 @@ mod test {
         let r: RegexItem = r#"[bcd]ef"#.into();
         assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd']);
 
-        //let r: RegexItem = r#"(bc|de)ef"#.into();
-        //println!("{:#?}", r);
-        //println!("===> {}", String::from_utf8_lossy(&r.first_characters_set()[..]));
-        //assert_eq!(r.first_characters_set(), vec![b'b', b'd']);        
+        let r: RegexItem = r#"[bcd]*e?f"#.into();
+        assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd', b'e', b'f']);
+
+        let r: RegexItem = r#"(bc|de)ef"#.into();
+        assert_eq!(r.first_characters_set(), vec![b'b', b'd']);        
+
+        let r: RegexItem = r#"(b?c|[de])ef"#.into();
+        assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd', b'e']);        
     }
 }
 
