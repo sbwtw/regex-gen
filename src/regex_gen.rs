@@ -156,41 +156,126 @@ impl ToString for RegexItem {
 
 impl RegexUnit {
     fn nfa_graph(&self) -> NFAGraph {
-        let mut graph = NFAGraph::new();
-        let start_id = graph.start_id();
-        let end_id = graph.end_id();
 
         match self {
             &RegexUnit::Character(c) => {
-                let (start, end) = graph.nodes();
+                let mut graph = NFAGraph::new();
+                {
+                    let end_id = graph.end_id();
+                    let (start, _) = graph.nodes();
 
-                start.connect(end_id, Some(c));
+                    start.connect(end_id, Some(c));
+                }
+
+                graph
             },
-            &RegexUnit::CharacterRange(s, e) => {},
-            &RegexUnit::UnitChoice(ref list) => {},
-            &RegexUnit::ItemList(ref list) => {},
-            &RegexUnit::ItemChoice(ref list) => {},
-        }
+            &RegexUnit::CharacterRange(s, e) => {
+                let mut graph = NFAGraph::new();
+                {
+                    let end_id = graph.end_id();
+                    let (start, _) = graph.nodes();
 
-        graph
+                    for c in s..(e + 1) {
+                        start.connect(end_id, Some(c));
+                    }
+                }
+
+                graph
+            },
+            &RegexUnit::UnitChoice(ref list) => {
+                unimplemented!();
+            },
+            &RegexUnit::ItemList(ref list) => {
+                assert!(list.len() > 0);
+                let mut gs: Vec<NFAGraph> = list.iter().map(|x| x.nfa_graph()).collect();
+                let mut graph = NFAGraph::from_id(gs[0].start_id(), gs.last_mut().unwrap().end_id());
+
+                for i in 0..(gs.len() - 1) {
+                    let id = gs[i + 1].start_id();
+                    gs[i].end_mut().connect(id, None);
+                }
+
+                // merge
+                for g in gs {
+                    graph.append_sub_graph(g);
+                }
+
+                graph
+            },
+            &RegexUnit::ItemChoice(ref list) => {
+                let mut sub_graphs = vec![];
+                let mut graph = NFAGraph::new();
+                let end_id = graph.end_id();
+                {
+                    let (start, _) = graph.nodes();
+
+                    for item in list {
+                        let mut g = item.nfa_graph();
+
+                        // connect start to sub graph start
+                        start.connect(g.start_id(), None);
+                        // connect sub graph to our end
+                        g.end_mut().connect(end_id, None);
+
+                        sub_graphs.push(g);
+                    }
+                }
+
+                // merge sub_graphs to graph
+                for g in sub_graphs {
+                    graph.append_sub_graph(g);
+                }
+
+                graph
+            },
+        }
     }
 }
 
 impl RegexItem {
     pub fn nfa_graph(&self) -> NFAGraph {
         let mut graph = self.unit.nfa_graph();
-        let start_id = graph.start_id();
         let end_id = graph.end_id();
 
-        // do epsilon move from start to end
-        if matches!(self.annotation, RegexAnnotation::OneOrZero | RegexAnnotation::AnyOccurs) {
-            let end_id = graph.end_id().clone();
-            let edge = Edge::epsilon(end_id);
+        match self.annotation {
+            RegexAnnotation::OneOrZero => {
+                // `?`
+                let end_id = graph.end_id().clone();
+                graph.start_mut().connect(end_id, None);
+            },
+            RegexAnnotation::GreaterZero => {
+                // `+`
+                let edges: Vec<Option<u8>> =
+                    graph.start_mut()
+                        .edges()
+                        .iter()
+                        .filter(|x| x.next_node() == end_id && x.matches().is_some())
+                        .map(|x| x.matches())
+                        .collect();
 
-            graph.start().append_edge(edge);
+                for edge in edges.iter() {
+                    graph.end_mut().connect(end_id, *edge);
+                }
+            },
+            RegexAnnotation::AnyOccurs => {
+                // '*'
+                let end_id = graph.end_id().clone();
+                graph.start_mut().connect(end_id, None);
+
+                let edges: Vec<Option<u8>> =
+                    graph.start_mut()
+                        .edges()
+                        .iter()
+                        .filter(|x| x.next_node() == end_id && x.matches().is_some())
+                        .map(|x| x.matches())
+                        .collect();
+
+                for edge in edges.iter() {
+                    graph.end_mut().connect(end_id, *edge);
+                }
+            },
+            RegexAnnotation::StandAlone => {},
         }
-
-        // process all edge which connect start-end, copy to end-end
 
         graph
     }
@@ -357,6 +442,16 @@ impl<'s> RegexParser<'s> {
 mod test {
 
     use regex_gen::*;
+
+    #[test]
+    fn test_print_graph() {
+        let r: RegexItem = r#"d+e"#.into();
+        let g = r.nfa_graph();
+
+        println!("{:#?}", r);
+        println!("{}", r.to_string());
+        println!("{}", g);
+    }
 
     #[test]
     fn test_parse() {
