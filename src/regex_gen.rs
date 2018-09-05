@@ -183,7 +183,30 @@ impl RegexUnit {
                 graph
             },
             &RegexUnit::UnitChoice(ref list) => {
-                unimplemented!();
+                let mut sub_graphs = vec![];
+                let mut graph = NFAGraph::new();
+                let end_id = graph.end_id();
+                {
+                    let (start, _) = graph.nodes();
+
+                    for item in list {
+                        let mut g = item.nfa_graph();
+
+                        // connect start to sub graph start
+                        start.connect(g.start_id(), None);
+                        // connect sub graph to our end
+                        g.end_mut().connect(end_id, None);
+
+                        sub_graphs.push(g);
+                    }
+                }
+
+                // merge sub_graphs to graph
+                for g in sub_graphs {
+                    graph.append_sub_graph(g);
+                }
+
+                graph
             },
             &RegexUnit::ItemList(ref list) => {
                 assert!(list.len() > 0);
@@ -445,7 +468,7 @@ mod test {
 
     #[test]
     fn test_print_graph() {
-        let r: RegexItem = r#"d+e"#.into();
+        let r: RegexItem = r#"d[ef]g"#.into();
         let g = r.nfa_graph();
 
         println!("{:#?}", r);
