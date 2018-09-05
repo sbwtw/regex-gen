@@ -7,9 +7,10 @@ use std::iter::Peekable;
 use std::string::ToString;
 
 use super::CodeGenerator;
+use node::*;
 
 #[derive(Debug, PartialEq)]
-enum RegexUnit {
+pub enum RegexUnit {
     Character(u8),
     CharacterRange(u8, u8),
     UnitChoice(Vec<RegexUnit>),
@@ -18,7 +19,7 @@ enum RegexUnit {
 }
 
 #[derive(Debug, PartialEq)]
-enum RegexAnnotation {
+pub enum RegexAnnotation {
     StandAlone,
     OneOrZero,      // '?'
     GreaterZero,    // '+'
@@ -56,7 +57,7 @@ impl<'s> From<&'s str> for RegexItem {
 }
 
 impl RegexItem {
-    fn first_characters_set(&self) -> Vec<u8> {
+    pub fn first_characters_set(&self) -> Vec<u8> {
         self.unit.first_characters_set()
     }
 }
@@ -66,7 +67,7 @@ impl RegexUnit {
         match self {
             &RegexUnit::Character(c) => vec![c],
             &RegexUnit::CharacterRange(s, e) => (s..(e + 1)).collect(),
-            &RegexUnit::UnitChoice(ref list) => 
+            &RegexUnit::UnitChoice(ref list) =>
                 list.iter()
                     .map(|x| x.first_characters_set())
                     .flatten()
@@ -153,6 +154,48 @@ impl ToString for RegexItem {
     }
 }
 
+impl RegexUnit {
+    fn nfa_graph(&self) -> NFAGraph {
+        let mut graph = NFAGraph::new();
+        let start_id = graph.start_id();
+        let end_id = graph.end_id();
+
+        match self {
+            &RegexUnit::Character(c) => {
+                let (start, end) = graph.nodes();
+
+                start.connect(end_id, Some(c));
+            },
+            &RegexUnit::CharacterRange(s, e) => {},
+            &RegexUnit::UnitChoice(ref list) => {},
+            &RegexUnit::ItemList(ref list) => {},
+            &RegexUnit::ItemChoice(ref list) => {},
+        }
+
+        graph
+    }
+}
+
+impl RegexItem {
+    pub fn nfa_graph(&self) -> NFAGraph {
+        let mut graph = self.unit.nfa_graph();
+        let start_id = graph.start_id();
+        let end_id = graph.end_id();
+
+        // do epsilon move from start to end
+        if matches!(self.annotation, RegexAnnotation::OneOrZero | RegexAnnotation::AnyOccurs) {
+            let end_id = graph.end_id().clone();
+            let edge = Edge::epsilon(end_id);
+
+            graph.start().append_edge(edge);
+        }
+
+        // process all edge which connect start-end, copy to end-end
+
+        graph
+    }
+}
+
 type RegexParserError = ();
 type RegexParserResult = Result<RegexItem, RegexParserError>;
 
@@ -222,7 +265,7 @@ impl<'s> RegexParser<'s> {
                             items.push(RegexUnit::Character(self.input.next().unwrap() as u8));
                         },
                         _ => return Err(()),
-                    }                    
+                    }
                 },
                 Some('a') => {
                     if let Some('-') = self.input.peek() {
@@ -316,7 +359,7 @@ mod test {
     use regex_gen::*;
 
     #[test]
-    fn test() {
+    fn test_parse() {
         let r1: RegexItem = r#"a[-a\\bd\[\]\d]+"#.into();
         let r2: RegexItem = r#"a[-a\\bd\[\]0-9]+"#.into();
         assert_eq!(r1, r2);
@@ -340,7 +383,7 @@ mod test {
     #[test]
     fn test_first_set() {
         let r: RegexItem = r#"a[bcd]ef"#.into();
-        assert_eq!(r.first_characters_set(), vec![b'a']);        
+        assert_eq!(r.first_characters_set(), vec![b'a']);
 
         let r: RegexItem = r#"[bcd]ef"#.into();
         assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd']);
@@ -349,13 +392,13 @@ mod test {
         assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd', b'e', b'f']);
 
         let r: RegexItem = r#"(bc|de)ef"#.into();
-        assert_eq!(r.first_characters_set(), vec![b'b', b'd']);        
+        assert_eq!(r.first_characters_set(), vec![b'b', b'd']);
 
         let r: RegexItem = r#"(b?c|[de])ef"#.into();
-        assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd', b'e']);        
+        assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd', b'e']);
 
         let r: RegexItem = r#"[\d]"#.into();
-        assert_eq!(r.first_characters_set(), vec![b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']);        
+        assert_eq!(r.first_characters_set(), vec![b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']);
 
         let r: RegexItem = r#"[a-z]"#.into();
         let s = r.first_characters_set();
