@@ -1,9 +1,8 @@
-
+use std::convert::From;
 use std::io;
 use std::io::Write;
-use std::convert::From;
-use std::str::Chars;
 use std::iter::Peekable;
+use std::str::Chars;
 use std::string::ToString;
 
 use super::CodeGenerator;
@@ -21,9 +20,9 @@ pub enum RegexUnit {
 #[derive(Debug, PartialEq)]
 pub enum RegexAnnotation {
     StandAlone,
-    OneOrZero,      // '?'
-    GreaterZero,    // '+'
-    AnyOccurs,      // '*'
+    OneOrZero,   // '?'
+    GreaterZero, // '+'
+    AnyOccurs,   // '*'
 }
 
 #[derive(Debug, PartialEq)]
@@ -52,7 +51,8 @@ impl<'s> From<&'s str> for RegexItem {
     fn from(s: &'s str) -> RegexItem {
         RegexParser {
             input: s.chars().peekable(),
-        }.parse().unwrap()
+        }.parse()
+        .unwrap()
     }
 }
 
@@ -67,23 +67,26 @@ impl RegexUnit {
         match self {
             &RegexUnit::Character(c) => vec![c],
             &RegexUnit::CharacterRange(s, e) => (s..(e + 1)).collect(),
-            &RegexUnit::UnitChoice(ref list) =>
-                list.iter()
-                    .map(|x| x.first_characters_set())
-                    .flatten()
-                    .collect(),
-            &RegexUnit::ItemChoice(ref list) =>
-                list.iter()
-                    .map(|x| x.first_characters_set())
-                    .flatten()
-                    .collect(),
+            &RegexUnit::UnitChoice(ref list) => list
+                .iter()
+                .map(|x| x.first_characters_set())
+                .flatten()
+                .collect(),
+            &RegexUnit::ItemChoice(ref list) => list
+                .iter()
+                .map(|x| x.first_characters_set())
+                .flatten()
+                .collect(),
             &RegexUnit::ItemList(ref list) => {
                 let mut r = vec![];
 
                 for item in list {
                     r.append(&mut item.first_characters_set());
 
-                    if !matches!(item.annotation, RegexAnnotation::OneOrZero | RegexAnnotation::AnyOccurs) {
+                    if !matches!(
+                        item.annotation,
+                        RegexAnnotation::OneOrZero | RegexAnnotation::AnyOccurs
+                    ) {
                         return r;
                     }
                 }
@@ -104,14 +107,14 @@ impl ToString for RegexUnit {
                 r.push(*s as char);
                 r.push('-');
                 r.push(*e as char);
-            },
+            }
             RegexUnit::UnitChoice(list) => {
                 r.push('[');
                 for i in list {
                     r.push_str(&i.to_string());
                 }
                 r.push(']');
-            },
+            }
             RegexUnit::ItemChoice(list) => {
                 let mut it = list.iter();
 
@@ -124,13 +127,12 @@ impl ToString for RegexUnit {
                     r.push_str(&item.to_string());
                 }
                 r.push(')');
-            },
+            }
             RegexUnit::ItemList(list) => {
                 for i in list {
                     r.push_str(&i.to_string());
                 }
-            },
-
+            }
         }
 
         r
@@ -147,7 +149,7 @@ impl ToString for RegexItem {
             RegexAnnotation::AnyOccurs => r.push('*'),
             RegexAnnotation::OneOrZero => r.push('?'),
             RegexAnnotation::GreaterZero => r.push('+'),
-            _ => {},
+            _ => {}
         }
 
         r
@@ -156,7 +158,6 @@ impl ToString for RegexItem {
 
 impl RegexUnit {
     fn nfa_graph(&self) -> NFAGraph {
-
         match self {
             &RegexUnit::Character(c) => {
                 let mut graph = NFAGraph::new();
@@ -168,7 +169,7 @@ impl RegexUnit {
                 }
 
                 graph
-            },
+            }
             &RegexUnit::CharacterRange(s, e) => {
                 let mut graph = NFAGraph::new();
                 {
@@ -181,7 +182,7 @@ impl RegexUnit {
                 }
 
                 graph
-            },
+            }
             &RegexUnit::UnitChoice(ref list) => {
                 let mut sub_graphs = vec![];
                 let mut graph = NFAGraph::new();
@@ -207,11 +208,12 @@ impl RegexUnit {
                 }
 
                 graph
-            },
+            }
             &RegexUnit::ItemList(ref list) => {
                 assert!(list.len() > 0);
                 let mut gs: Vec<NFAGraph> = list.iter().map(|x| x.nfa_graph()).collect();
-                let mut graph = NFAGraph::from_id(gs[0].start_id(), gs.last_mut().unwrap().end_id());
+                let mut graph =
+                    NFAGraph::from_id(gs[0].start_id(), gs.last_mut().unwrap().end_id());
 
                 for i in 0..(gs.len() - 1) {
                     let id = gs[i + 1].start_id();
@@ -224,7 +226,7 @@ impl RegexUnit {
                 }
 
                 graph
-            },
+            }
             &RegexUnit::ItemChoice(ref list) => {
                 let mut sub_graphs = vec![];
                 let mut graph = NFAGraph::new();
@@ -250,7 +252,7 @@ impl RegexUnit {
                 }
 
                 graph
-            },
+            }
         }
     }
 }
@@ -259,45 +261,23 @@ impl RegexItem {
     pub fn nfa_graph(&self) -> NFAGraph {
         let mut graph = self.unit.nfa_graph();
         let end_id = graph.end_id();
+        let start_id = graph.start_id();
 
         match self.annotation {
             RegexAnnotation::OneOrZero => {
                 // `?`
-                let end_id = graph.end_id().clone();
                 graph.start_mut().connect(end_id, None);
-            },
+            }
             RegexAnnotation::GreaterZero => {
                 // `+`
-                let edges: Vec<Option<u8>> =
-                    graph.start_mut()
-                        .edges()
-                        .iter()
-                        .filter(|x| x.next_node() == end_id && x.matches().is_some())
-                        .map(|x| x.matches())
-                        .collect();
-
-                for edge in edges.iter() {
-                    graph.end_mut().connect(end_id, *edge);
-                }
-            },
+                graph.end_mut().connect(start_id, None);
+            }
             RegexAnnotation::AnyOccurs => {
                 // '*'
-                let end_id = graph.end_id().clone();
                 graph.start_mut().connect(end_id, None);
-
-                let edges: Vec<Option<u8>> =
-                    graph.start_mut()
-                        .edges()
-                        .iter()
-                        .filter(|x| x.next_node() == end_id && x.matches().is_some())
-                        .map(|x| x.matches())
-                        .collect();
-
-                for edge in edges.iter() {
-                    graph.end_mut().connect(end_id, *edge);
-                }
-            },
-            RegexAnnotation::StandAlone => {},
+                graph.end_mut().connect(start_id, None);
+            }
+            RegexAnnotation::StandAlone => {}
         }
 
         graph
@@ -328,8 +308,7 @@ impl<'s> RegexParser<'s> {
     }
 
     fn dispatch(&mut self) -> RegexParserResult {
-        if let Some(c) = self.input.peek().map(|x| x.clone())
-        {
+        if let Some(c) = self.input.peek().map(|x| x.clone()) {
             match c {
                 '[' => self.parse_character_group(),
                 '(' => self.parse_item_group(),
@@ -362,18 +341,16 @@ impl<'s> RegexParser<'s> {
 
         loop {
             match self.input.next().map(|x| x.clone()) {
-                Some('\\') => {
-                    match self.input.peek() {
-                        Some('d') => {
-                            self.input.next();
+                Some('\\') => match self.input.peek() {
+                    Some('d') => {
+                        self.input.next();
 
-                            items.push(RegexUnit::CharacterRange(b'0', b'9'));
-                        },
-                        Some('\\') | Some('[') | Some(']') => {
-                            items.push(RegexUnit::Character(self.input.next().unwrap() as u8));
-                        },
-                        _ => return Err(()),
+                        items.push(RegexUnit::CharacterRange(b'0', b'9'));
                     }
+                    Some('\\') | Some('[') | Some(']') => {
+                        items.push(RegexUnit::Character(self.input.next().unwrap() as u8));
+                    }
+                    _ => return Err(()),
                 },
                 Some('a') => {
                     if let Some('-') = self.input.peek() {
@@ -385,7 +362,7 @@ impl<'s> RegexParser<'s> {
                     } else {
                         items.push(RegexUnit::Character(b'a'));
                     }
-                },
+                }
                 Some('A') => {
                     if let Some('-') = self.input.peek() {
                         self.input.next();
@@ -396,7 +373,7 @@ impl<'s> RegexParser<'s> {
                     } else {
                         items.push(RegexUnit::Character(b'A'));
                     }
-                },
+                }
                 Some('0') => {
                     if let Some('-') = self.input.peek() {
                         self.input.next();
@@ -407,16 +384,16 @@ impl<'s> RegexParser<'s> {
                     } else {
                         items.push(RegexUnit::Character(b'0'));
                     }
-                },
+                }
                 Some(']') => {
                     return Ok(RegexItem {
                         unit: RegexUnit::UnitChoice(items),
                         annotation: self.parse_annotation(),
                     })
-                },
+                }
                 Some(c) => {
                     items.push(RegexUnit::Character(c as u8));
-                },
+                }
                 None => return Err(()),
             }
         }
@@ -435,12 +412,12 @@ impl<'s> RegexParser<'s> {
                     return Ok(RegexItem {
                         unit: RegexUnit::ItemChoice(items),
                         annotation: self.parse_annotation(),
-                    })
-                },
+                    });
+                }
                 Some('|') => {
                     items.push((&buffer[..]).into());
                     buffer.clear();
-                },
+                }
                 Some(c) => buffer.push(c),
                 None => return Err(()),
             }
@@ -458,7 +435,6 @@ impl<'s> RegexParser<'s> {
         self.input.next();
         r
     }
-
 }
 
 #[cfg(test)]
@@ -468,12 +444,21 @@ mod test {
 
     #[test]
     fn test_print_graph() {
-        let r: RegexItem = r#"d[ef]g"#.into();
+        let r: RegexItem = r#"abc"#.into();
         let g = r.nfa_graph();
+        assert_eq!(g.edge_count(), 5);
 
-        println!("{:#?}", r);
-        println!("{}", r.to_string());
-        println!("{}", g);
+        let r: RegexItem = r#"[bc]"#.into();
+        let g = r.nfa_graph();
+        assert_eq!(g.edge_count(), 6);
+
+        let r: RegexItem = r#"[bc]+"#.into();
+        let g = r.nfa_graph();
+        assert_eq!(g.edge_count(), 7);
+
+        let r: RegexItem = r#"(a*|[bc]?d)+"#.into();
+        let g = r.nfa_graph();
+        assert_eq!(g.edge_count(), 17);
     }
 
     #[test]
@@ -484,10 +469,12 @@ mod test {
 
         let s = r#"a(bc|de)f"#;
         let r: RegexItem = s.into();
+        assert_eq!(r.to_string(), "a(bc|de)f".to_string());
         assert_eq!(r.to_string(), s);
 
         let s = r#"a(b+[cde]*|de)f"#;
         let r: RegexItem = s.into();
+        assert_eq!(r.to_string(), "a(b+[cde]*|de)f".to_string());
         assert_eq!(r.to_string(), s);
     }
 
@@ -516,7 +503,10 @@ mod test {
         assert_eq!(r.first_characters_set(), vec![b'b', b'c', b'd', b'e']);
 
         let r: RegexItem = r#"[\d]"#.into();
-        assert_eq!(r.first_characters_set(), vec![b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']);
+        assert_eq!(
+            r.first_characters_set(),
+            vec![b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']
+        );
 
         let r: RegexItem = r#"[a-z]"#.into();
         let s = r.first_characters_set();
@@ -529,4 +519,3 @@ mod test {
         assert!(!s.contains(&b'A'));
     }
 }
-

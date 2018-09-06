@@ -1,4 +1,3 @@
-
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -39,6 +38,16 @@ impl NFAGraph {
         }
     }
 
+    #[cfg(test)]
+    pub fn edge_count(&self) -> usize {
+        self.sub_graphs
+            .iter()
+            .map(|x| x.edge_count())
+            .sum::<usize>()
+            + self.start.edge_count()
+            + self.end.edge_count()
+    }
+
     pub fn nodes(&mut self) -> (&mut Node, &mut Node) {
         (&mut self.start, &mut self.end)
     }
@@ -66,14 +75,16 @@ impl NFAGraph {
 
 impl fmt::Display for NFAGraph {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-
         for g in &self.sub_graphs {
             write!(f, "{}", g)?;
         }
 
-        writeln!(f, "NFA-Graph (start: {}, end: {})",
-                 self.start.id(),
-                 self.end.id())?;
+        writeln!(
+            f,
+            "NFA-Graph (start: {}, end: {})",
+            self.start.id(),
+            self.end.id()
+        )?;
 
         // print start edges
         writeln!(f, "\tEdge: {}", self.start.id())?;
@@ -98,9 +109,12 @@ pub struct Edge {
 
 impl fmt::Display for Edge {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "\t\tmatch `{}` goto: {}",
-                 self.character.map(|x| x as char).unwrap_or('ε'),
-                 self.next_node)
+        writeln!(
+            f,
+            "\t\tmatch `{}` goto: {}",
+            self.character.map(|x| x as char).unwrap_or('ε'),
+            self.next_node
+        )
     }
 }
 
@@ -142,10 +156,12 @@ impl Node {
     }
 
     pub fn from_id(id: usize) -> Node {
-        Node {
-            id,
-            edges: vec![],
-        }
+        Node { id, edges: vec![] }
+    }
+
+    #[cfg(test)]
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
     }
 
     pub fn id(&self) -> usize {
@@ -164,4 +180,3 @@ impl Node {
         &self.edges
     }
 }
-
