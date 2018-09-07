@@ -7,6 +7,7 @@ use std::string::ToString;
 
 use super::CodeGenerator;
 use node::*;
+use transtable::*;
 
 #[derive(Debug, PartialEq)]
 pub enum RegexUnit {
@@ -445,20 +446,22 @@ mod test {
     #[test]
     fn test_print_graph() {
         let r: RegexItem = r#"abc"#.into();
-        let g = r.nfa_graph();
-        assert_eq!(g.edge_count(), 5);
+        let t = TransTable::from_nfa(&r.nfa_graph());
+        assert_eq!(t.state_count(), 6);
+        assert_eq!(t.edge_count(), 5);
 
         let r: RegexItem = r#"[bc]"#.into();
-        let g = r.nfa_graph();
-        assert_eq!(g.edge_count(), 6);
+        let t = TransTable::from_nfa(&r.nfa_graph());
+        assert_eq!(t.edge_count(), 6);
 
         let r: RegexItem = r#"[bc]+"#.into();
-        let g = r.nfa_graph();
-        assert_eq!(g.edge_count(), 7);
+        let t = TransTable::from_nfa(&r.nfa_graph());
+        assert_eq!(t.edge_count(), 7);
 
         let r: RegexItem = r#"(a*|[bc]?d)+"#.into();
-        let g = r.nfa_graph();
-        assert_eq!(g.edge_count(), 17);
+        let t = TransTable::from_nfa(&r.nfa_graph());
+        assert_eq!(t.state_count(), 12);
+        assert_eq!(t.edge_count(), 17);
     }
 
     #[test]

@@ -25,11 +25,15 @@ fn append_trans(table: &mut TransTable, nfa: &NFAGraph) {
     let start_id = nfa.start_id();
     let end_id = nfa.end_id();
 
-    table.trans.insert(start_id, start.edges().clone());
-    table.trans.insert(end_id, end.edges().clone());
+    table.trans.entry(start_id)
+        .or_insert(vec![])
+        .append(&mut start.edges().clone());
+    table.trans.entry(end_id)
+        .or_insert(vec![])
+        .append(&mut end.edges().clone());
 
     for n in nfa.sub_graphs() {
-        append_states(table, n);
+        append_trans(table, n);
     }
 }
 
@@ -43,8 +47,18 @@ impl TransTable {
         };
 
         r.end.insert(nfa.end_id());
+        append_states(&mut r, nfa);
+        append_trans(&mut r, nfa);
 
         r
+    }
+
+    pub fn state_count(&self) -> usize {
+        self.states.len()
+    }
+
+    pub fn edge_count(&self) -> usize {
+        self.trans.values().map(|x| x.len()).sum()
     }
 }
 
@@ -53,18 +67,21 @@ impl fmt::Display for TransTable {
         writeln!(f, "TransTable(start: {})", self.start)?;
 
         // dump states
-        write!(f, "States: ")?;
         for state in self.states.iter() {
             if self.end.contains(state) {
-                write!(f, "{}*\t", state)?;
+                writeln!(f, "\tState {}*", state)?;
             } else {
-                write!(f, "{}\t", state)?;
+                writeln!(f, "\tState {}", state)?;
+            }
+
+            if let Some(edges) = self.trans.get(state) {
+                for edge in edges {
+                    writeln!(f, "\t\tmatch '{}' to {}",
+                             edge.matches().map(|x| x as char).unwrap_or('ε'),
+                             edge.next_node());
+                }
             }
         }
-        writeln!(f)?;
-
-        // dump edges
-        writeln!(f, "Edges:")?;
 
         writeln!(f)
     }
