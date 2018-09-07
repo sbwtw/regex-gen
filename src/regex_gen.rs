@@ -163,7 +163,7 @@ impl RegexUnit {
                 let mut graph = NFAGraph::new();
                 {
                     let end_id = graph.end_id();
-                    let (start, _) = graph.nodes();
+                    let (start, _) = graph.nodes_mut();
 
                     start.connect(end_id, Some(c));
                 }
@@ -174,7 +174,7 @@ impl RegexUnit {
                 let mut graph = NFAGraph::new();
                 {
                     let end_id = graph.end_id();
-                    let (start, _) = graph.nodes();
+                    let (start, _) = graph.nodes_mut();
 
                     for c in s..(e + 1) {
                         start.connect(end_id, Some(c));
@@ -188,7 +188,7 @@ impl RegexUnit {
                 let mut graph = NFAGraph::new();
                 let end_id = graph.end_id();
                 {
-                    let (start, _) = graph.nodes();
+                    let (start, _) = graph.nodes_mut();
 
                     for item in list {
                         let mut g = item.nfa_graph();
@@ -232,7 +232,7 @@ impl RegexUnit {
                 let mut graph = NFAGraph::new();
                 let end_id = graph.end_id();
                 {
-                    let (start, _) = graph.nodes();
+                    let (start, _) = graph.nodes_mut();
 
                     for item in list {
                         let mut g = item.nfa_graph();

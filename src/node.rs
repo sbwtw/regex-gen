@@ -48,8 +48,16 @@ impl NFAGraph {
             + self.end.edge_count()
     }
 
-    pub fn nodes(&mut self) -> (&mut Node, &mut Node) {
+    pub fn nodes(&self) -> (&Node, &Node) {
+        (&self.start, &self.end)
+    }
+
+    pub fn nodes_mut(&mut self) -> (&mut Node, &mut Node) {
         (&mut self.start, &mut self.end)
+    }
+
+    pub fn sub_graphs(&self) -> &Vec<NFAGraph> {
+        &self.sub_graphs
     }
 
     pub fn start_mut(&mut self) -> &mut Node {
@@ -102,6 +110,7 @@ impl fmt::Display for NFAGraph {
     }
 }
 
+#[derive(Clone)]
 pub struct Edge {
     character: Option<u8>,
     next_node: usize,
@@ -142,6 +151,7 @@ impl Edge {
     }
 }
 
+#[derive(Clone)]
 pub struct Node {
     id: usize,
     edges: Vec<Edge>,

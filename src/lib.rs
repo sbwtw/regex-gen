@@ -14,4 +14,5 @@ mod terminal;
 pub mod regex_gen;
 mod node;
 mod nfa;
+pub mod transtable;
 
