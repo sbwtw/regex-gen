@@ -78,7 +78,7 @@ impl fmt::Display for TransTable {
                 for edge in edges {
                     writeln!(f, "\t\tmatch '{}' to {}",
                              edge.matches().map(|x| x as char).unwrap_or('ε'),
-                             edge.next_node());
+                             edge.next_node())?;
                 }
             }
         }

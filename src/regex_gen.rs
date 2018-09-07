@@ -7,7 +7,6 @@ use std::string::ToString;
 
 use super::CodeGenerator;
 use node::*;
-use transtable::*;
 
 #[derive(Debug, PartialEq)]
 pub enum RegexUnit {
@@ -442,6 +441,7 @@ impl<'s> RegexParser<'s> {
 mod test {
 
     use regex_gen::*;
+    use transtable::*;
 
     #[test]
     fn test_print_graph() {

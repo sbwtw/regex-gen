@@ -1,4 +1,3 @@
-use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static ID_SEQ: AtomicUsize = AtomicUsize::new(0);
@@ -81,50 +80,10 @@ impl NFAGraph {
     }
 }
 
-impl fmt::Display for NFAGraph {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for g in &self.sub_graphs {
-            write!(f, "{}", g)?;
-        }
-
-        writeln!(
-            f,
-            "NFA-Graph (start: {}, end: {})",
-            self.start.id(),
-            self.end.id()
-        )?;
-
-        // print start edges
-        writeln!(f, "\tEdge: {}", self.start.id())?;
-        for e in self.start.edges() {
-            write!(f, "{}", e)?;
-        }
-
-        // print end edges
-        writeln!(f, "\tEdge: {}", self.end.id())?;
-        for e in self.end.edges() {
-            write!(f, "{}", e)?;
-        }
-
-        writeln!(f)
-    }
-}
-
 #[derive(Clone)]
 pub struct Edge {
     character: Option<u8>,
     next_node: usize,
-}
-
-impl fmt::Display for Edge {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(
-            f,
-            "\t\tmatch `{}` goto: {}",
-            self.character.map(|x| x as char).unwrap_or('ε'),
-            self.next_node
-        )
-    }
 }
 
 impl Edge {
