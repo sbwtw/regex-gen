@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::str;
 
 static ID_SEQ: AtomicUsize = AtomicUsize::new(0);
 
@@ -80,29 +81,67 @@ impl NFAGraph {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum EdgeMatches {
+    Character(u8),
+    CharacterRange(u8, u8),
+    Not(Vec<u8>),
+}
+
+#[inline]
+fn display(c: &u8) -> String {
+    match *c {
+        b'\n' => "<br>".to_string(),
+        _ => format!("'{}'", *c as char),
+    }
+}
+
+impl ToString for EdgeMatches {
+    fn to_string(&self) -> String {
+        match self {
+            EdgeMatches::Character(c) => format!("{}", display(c)),
+            EdgeMatches::CharacterRange(s, e) => format!("{}-{}", display(s), display(e)),
+            EdgeMatches::Not(list) => {
+                let mut s = "Not ".to_string();
+                let mut iter = list.iter();
+
+                if let Some(c) = iter.next() {
+                    s.push_str(&format!("{}", display(c)));
+                }
+
+                while let Some(c) = iter.next() {
+                    s.push_str(&format!(", {}", display(c)));
+                }
+
+                s
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Edge {
-    character: Option<u8>,
+    matches: Option<EdgeMatches>,
     next_node: usize,
 }
 
 impl Edge {
     pub fn epsilon(next_node: usize) -> Edge {
         Edge {
-            character: None,
+            matches: None,
             next_node,
         }
     }
 
-    pub fn new(dest: usize, ch: Option<u8>) -> Edge {
+    pub fn new(dest: usize, matches: Option<EdgeMatches>) -> Edge {
         Edge {
-            character: ch,
+            matches: matches,
             next_node: dest,
         }
     }
 
-    pub fn matches(&self) -> Option<u8> {
-        self.character
+    pub fn matches(&self) -> &Option<EdgeMatches> {
+        &self.matches
     }
 
     pub fn next_node(&self) -> usize {
@@ -137,8 +176,8 @@ impl Node {
         self.id
     }
 
-    pub fn connect(&mut self, dest: usize, ch: Option<u8>) {
-        self.append_edge(Edge::new(dest, ch));
+    pub fn connect(&mut self, dest: usize, matches: Option<EdgeMatches>) {
+        self.append_edge(Edge::new(dest, matches));
     }
 
     pub fn append_edge(&mut self, edge: Edge) {

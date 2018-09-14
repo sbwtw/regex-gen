@@ -1,4 +1,3 @@
-
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -25,10 +24,14 @@ fn append_trans(table: &mut TransTable, nfa: &NFAGraph) {
     let start_id = nfa.start_id();
     let end_id = nfa.end_id();
 
-    table.trans.entry(start_id)
+    table
+        .trans
+        .entry(start_id)
         .or_insert(vec![])
         .append(&mut start.edges().clone());
-    table.trans.entry(end_id)
+    table
+        .trans
+        .entry(end_id)
         .or_insert(vec![])
         .append(&mut end.edges().clone());
 
@@ -67,7 +70,14 @@ impl fmt::Display for TransTable {
         writeln!(f, "TransTable(start: {})", self.start)?;
 
         // dump states
-        for state in self.states.iter() {
+        let mut states = self
+            .states
+            .iter()
+            .map(|x| x.clone())
+            .collect::<Vec<usize>>();
+        states.sort();
+
+        for state in states.iter() {
             if self.end.contains(state) {
                 writeln!(f, "\tState {}*", state)?;
             } else {
@@ -76,9 +86,15 @@ impl fmt::Display for TransTable {
 
             if let Some(edges) = self.trans.get(state) {
                 for edge in edges {
-                    writeln!(f, "\t\tmatch '{}' to {}",
-                             edge.matches().map(|x| x as char).unwrap_or('ε'),
-                             edge.next_node())?;
+                    writeln!(
+                        f,
+                        "\t\tmatch {} to {}",
+                        edge.matches()
+                            .clone()
+                            .map(|x| x.to_string())
+                            .unwrap_or("\u{03b5}".to_string()),
+                        edge.next_node()
+                    )?;
                 }
             }
         }
@@ -86,4 +102,3 @@ impl fmt::Display for TransTable {
         writeln!(f)
     }
 }
-

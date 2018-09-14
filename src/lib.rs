@@ -3,7 +3,6 @@ use std::io;
 use std::io::Write;
 
 #[macro_use]
-
 extern crate matches;
 
 trait CodeGenerator {
