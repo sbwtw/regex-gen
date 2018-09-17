@@ -146,6 +146,10 @@ impl Edge {
     pub fn next_node(&self) -> usize {
         self.next_node
     }
+
+    pub fn set_next_node(&mut self, next_node: usize) {
+        self.next_node = next_node;
+    }
 }
 
 #[derive(Clone)]
