@@ -9,4 +9,5 @@ trait CodeGenerator {
 pub mod regex_gen;
 mod node;
 pub mod transtable;
+pub mod dot_graph;
 

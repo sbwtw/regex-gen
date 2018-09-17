@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use node::*;
+use dot_graph::ToDotGraph;
 
 fn append_states(table: &mut TransTable, nfa: &NFAGraph) {
     table.states.insert(nfa.start_id());
@@ -48,6 +49,10 @@ impl TransTable {
         r.reset_state_mark();
 
         r
+    }
+
+    pub fn start_id(&self) -> usize {
+        self.start
     }
 
     pub fn state_count(&self) -> usize {
@@ -198,6 +203,32 @@ impl TransTable {
             .unwrap()
             .iter()
             .any(|x| x.matches().is_some())
+    }
+}
+
+impl ToDotGraph for TransTable {
+    fn to_dot_graph(&self) -> String {
+        let mut s = String::new();
+
+        s.push_str("digraph {\n");
+        s.push_str("\trankdir=LR;\n");
+        s.push_str(&format!("\tstart -> {};\n", self.start_id()));
+
+        for (state, edges) in self.trans.iter() {
+            for edge in edges.iter() {
+                s.push_str(&format!("\t{} -> {} [label=\"{}\"];\n", state, edge.next_node(), edge.matches().as_ref().unwrap().to_string()));
+            }
+        }
+
+        s.push_str("\tstart [shape=none,label=\"\",height=0,width=0]\n");
+
+        for state in self.end.iter() {
+            s.push_str(&format!("\t{} [peripheries=2]\n", state));
+        }
+
+        s.push_str("}\n");
+
+        s
     }
 }
 
