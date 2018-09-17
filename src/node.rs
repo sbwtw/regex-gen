@@ -118,7 +118,7 @@ impl ToString for EdgeMatches {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Edge {
     matches: Option<EdgeMatches>,
     next_node: usize,

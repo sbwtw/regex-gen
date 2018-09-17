@@ -3,17 +3,6 @@ use std::fmt;
 
 use node::*;
 
-pub struct TransTable {
-    start: usize,
-    end: HashSet<usize>,
-    states: HashSet<usize>,
-    trans: HashMap<usize, Vec<Edge>>,
-}
-
-fn cut_epsilon(table: &mut TransTable) -> TransTable {
-    unimplemented!()
-}
-
 fn append_states(table: &mut TransTable, nfa: &NFAGraph) {
     table.states.insert(nfa.start_id());
     table.states.insert(nfa.end_id());
@@ -28,20 +17,19 @@ fn append_trans(table: &mut TransTable, nfa: &NFAGraph) {
     let start_id = nfa.start_id();
     let end_id = nfa.end_id();
 
-    table
-        .trans
-        .entry(start_id)
-        .or_insert(vec![])
-        .append(&mut start.edges().clone());
-    table
-        .trans
-        .entry(end_id)
-        .or_insert(vec![])
-        .append(&mut end.edges().clone());
+    table.append_edges(start_id, &mut start.edges().clone());
+    table.append_edges(end_id, &mut end.edges().clone());
 
     for n in nfa.sub_graphs() {
         append_trans(table, n);
     }
+}
+
+pub struct TransTable {
+    start: usize,
+    end: HashSet<usize>,
+    states: HashSet<usize>,
+    trans: HashMap<usize, Vec<Edge>>,
 }
 
 impl TransTable {
@@ -68,19 +56,86 @@ impl TransTable {
         self.trans.values().map(|x| x.len()).sum()
     }
 
+    pub fn cut_epsilon(&mut self) {
+        // mark epsilon move as end state
+        {
+            // collect state epsilon move
+            let epsilon_move: Vec<(usize, HashSet<usize>)> = self.states
+                .iter()
+                .map(|x| (*x, self.epsilon_move(*x)))
+                .collect();
+
+            assert!(self.end.len() == 1);
+            let end = self.end.iter().next().unwrap().clone();
+
+            for (state, dests) in epsilon_move {
+                if dests.contains(&end) {
+                    self.end.insert(state);
+                }
+            }
+        }
+
+        // generate edges
+        for (state, mut edges) in self
+            .states
+            .iter()
+            .filter(|&x| self.has_epsilon_edge(*x))
+            .map(|x| (*x, self.posssible_nontrivial_edges(*x)))
+            .collect::<Vec<(usize, Vec<Edge>)>>() {
+            self.append_edges(state, &mut edges);
+        }
+
+        // collect all useful states
+        let mut useful_states = vec![self.start];
+        let mut visit = vec![self.start];
+        while let Some(state) = visit.pop() {
+            for e in self.trans.get(&state).unwrap() {
+                let n = e.next_node();
+                if !useful_states.contains(&n) && e.matches().is_some() {
+                    useful_states.push(n);
+                    visit.push(n);
+                }
+            }
+        }
+
+        // remove no-used states
+        self.states.retain(|x| useful_states.contains(x));
+        self.trans.retain(|x, _| useful_states.contains(x));
+
+        // remove epsilon edges
+        for (_, mut edges) in self.trans.iter_mut() {
+            edges.retain(|e| e.matches().is_some());
+        }
+    }
+
+    fn append_edges(&mut self, state: usize, edges: &mut Vec<Edge>) {
+        self.trans.entry(state).or_insert(vec![]).append(edges);
+    }
+
+    fn posssible_nontrivial_edges(&self, state: usize) -> Vec<Edge> {
+        self.epsilon_move(state)
+            .iter()
+            .map(|x| self.trans.get(&x).unwrap())
+            .flatten()
+            .map(|x| x.clone())
+            .collect()
+    }
+
     fn epsilon_move(&self, state: usize) -> HashSet<usize> {
         let mut r: HashSet<usize> = HashSet::new();
 
         self.epsilon_move_internal(state, &mut r);
 
         r.iter()
-         .filter(|&x| *x != state && self.has_nontrivial_edge(*x))
-         .map(|x| *x)
-         .collect()
+            .filter(|&x| *x != state && (self.end.contains(x) || self.has_nontrivial_edge(*x)))
+            .map(|x| *x)
+            .collect()
     }
 
     fn epsilon_move_internal(&self, state: usize, visited: &mut HashSet<usize>) {
-        if visited.contains(&state) { return; }
+        if visited.contains(&state) {
+            return;
+        }
         visited.insert(state);
 
         for e in self
@@ -92,6 +147,14 @@ impl TransTable {
         {
             self.epsilon_move_internal(e.next_node(), visited);
         }
+    }
+
+    fn has_epsilon_edge(&self, state: usize) -> bool {
+        self.trans
+            .get(&state)
+            .unwrap()
+            .iter()
+            .any(|x| x.matches().is_none())
     }
 
     fn has_nontrivial_edge(&self, state: usize) -> bool {
@@ -112,11 +175,7 @@ impl fmt::Display for TransTable {
         writeln!(f, "TransTable(start: 0)")?;
 
         // dump states
-        let mut states = self
-            .states
-            .iter()
-            .map(|x| *x)
-            .collect::<Vec<usize>>();
+        let mut states = self.states.iter().map(|x| *x).collect::<Vec<usize>>();
         states.sort();
 
         for state in states.iter() {
@@ -167,6 +226,21 @@ mod test {
 
             assert_eq!(r, l);
         }};
+    }
+
+    #[test]
+    fn test_cut_epsilon() {
+        let r: RegexItem = r#"(a|b)+c"#.into();
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.cut_epsilon();
+        assert_eq!(t.state_count(), 4);
+        assert_eq!(t.edge_count(), 8);
+
+        let r: RegexItem = r#"([ab]+|c*)?"#.into();
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.cut_epsilon();
+        assert_eq!(t.state_count(), 4);
+        assert_eq!(t.edge_count(), 8);
     }
 
     #[test]
