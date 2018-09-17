@@ -492,6 +492,11 @@ mod test {
         let t = TransTable::from_nfa(&r.nfa_graph());
         assert_eq!(t.state_count(), 2);
         assert_eq!(t.edge_count(), 2);
+
+        let r: RegexItem = r#"(.+|\d+)?"#.into();
+        let t = TransTable::from_nfa(&r.nfa_graph());
+        assert_eq!(t.state_count(), 6);
+        assert_eq!(t.edge_count(), 9);
     }
 
     #[test]

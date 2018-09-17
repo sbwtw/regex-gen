@@ -1,5 +1,4 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::str;
 
 static ID_SEQ: AtomicUsize = AtomicUsize::new(0);
 

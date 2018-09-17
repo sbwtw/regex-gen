@@ -8,5 +8,4 @@ name = "regex_gen"
 path = "src/lib.rs"
 
 [dependencies]
-matches = "*"
 
