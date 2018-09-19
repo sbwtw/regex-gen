@@ -16,7 +16,7 @@ mod test {
         let mut t = TransTable::from_nfa(&r.nfa_graph());
         t.cut_epsilon();
 
-        println!("{}", t.to_dot_graph());
+        //println!("{}", t.to_dot_graph());
     }
 }
 
