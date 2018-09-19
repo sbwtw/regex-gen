@@ -146,6 +146,15 @@ impl Edge {
     pub fn next_node(&self) -> usize {
         self.next_node
     }
+
+    pub fn match_character(&self, c: u8) -> bool {
+        match self.matches {
+            Some(EdgeMatches::Character(ch)) => c == ch,
+            Some(EdgeMatches::Not(ref chs)) => !chs.contains(&c),
+            Some(EdgeMatches::CharacterRange(s, e)) => c >= s && c <= e,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -185,5 +194,34 @@ impl Node {
 
     pub fn edges(&self) -> &Vec<Edge> {
         &self.edges
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use node::*;
+
+    #[test]
+    fn test_edge_match() {
+        let edge = Edge::new(0, None);
+        assert_eq!(edge.match_character(b'c'), false);
+
+        let edge = Edge::new(0, Some(EdgeMatches::Character(b'c')));
+        assert_eq!(edge.match_character(b'c'), true);
+        assert_eq!(edge.match_character(b'd'), false);
+
+        let edge = Edge::new(0, Some(EdgeMatches::CharacterRange(b'3', b'5')));
+        assert_eq!(edge.match_character(b'2'), false);
+        assert_eq!(edge.match_character(b'3'), true);
+        assert_eq!(edge.match_character(b'4'), true);
+        assert_eq!(edge.match_character(b'5'), true);
+        assert_eq!(edge.match_character(b'6'), false);
+
+        let edge = Edge::new(0, Some(EdgeMatches::Not(vec![b'3', b'5'])));
+        assert_eq!(edge.match_character(b'2'), true);
+        assert_eq!(edge.match_character(b'3'), false);
+        assert_eq!(edge.match_character(b'4'), true);
+        assert_eq!(edge.match_character(b'5'), false);
+        assert_eq!(edge.match_character(b'6'), true);
     }
 }

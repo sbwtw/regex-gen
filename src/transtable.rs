@@ -63,6 +63,14 @@ impl TransTable {
         self.trans.values().map(|x| x.len()).sum()
     }
 
+    pub fn end_set(&self) -> &HashSet<usize> {
+        &self.end
+    }
+
+    pub fn trans_map(&self) -> &HashMap<usize, Vec<Edge>> {
+        &self.trans
+    }
+
     pub fn cut_epsilon(&mut self) {
         // mark epsilon move as end state
         {
@@ -116,9 +124,6 @@ impl TransTable {
         for (_, mut edges) in self.trans.iter_mut() {
             edges.retain(|e| e.matches().is_some());
         }
-
-        // reset state num
-        self.reset_state_mark()
     }
 
     fn reset_state_mark(&mut self) {
@@ -288,12 +293,14 @@ mod test {
         let r: RegexItem = r#"(a|b)+c"#.into();
         let mut t = TransTable::from_nfa(&r.nfa_graph());
         t.cut_epsilon();
+        t.reset_state_mark();
         assert_eq!(t.state_count(), 4);
         assert_eq!(t.edge_count(), 8);
 
         let r: RegexItem = r#"([ab]+|c*)?"#.into();
         let mut t = TransTable::from_nfa(&r.nfa_graph());
         t.cut_epsilon();
+        t.reset_state_mark();
         assert_eq!(t.state_count(), 4);
         assert_eq!(t.edge_count(), 8);
     }
@@ -301,7 +308,8 @@ mod test {
     #[test]
     fn test_epsilon_move() {
         let r: RegexItem = r#"(a|b)+c"#.into();
-        let t = TransTable::from_nfa(&r.nfa_graph());
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.reset_state_mark();
         assert_eq!(t.states.len(), 8);
         assert_move!(t, 0, vec![2, 4]);
         assert_move!(t, 3, vec![6, 2, 4]);
@@ -311,7 +319,8 @@ mod test {
         assert_move!(t, 7, vec![]);
 
         let r: RegexItem = r#"[-c]*"#.into();
-        let t = TransTable::from_nfa(&r.nfa_graph());
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.reset_state_mark();
         assert_eq!(t.states.len(), 6);
         assert_move!(t, 0, vec![1, 2, 4]);
         assert_move!(t, 1, vec![2, 4]);
@@ -321,7 +330,8 @@ mod test {
         assert_move!(t, 5, vec![1, 2, 4]);
 
         let r: RegexItem = r#"([ab]+|c*)?"#.into();
-        let t = TransTable::from_nfa(&r.nfa_graph());
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.reset_state_mark();
         assert_eq!(t.states.len(), 10);
         assert_move!(t, 0, vec![1, 4, 6, 8]);
         assert_move!(t, 2, vec![4, 6]);
