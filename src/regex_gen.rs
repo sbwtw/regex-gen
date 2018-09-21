@@ -9,16 +9,11 @@ use super::CodeGenerator;
 use node::*;
 
 #[derive(Debug, PartialEq)]
-pub enum ItemUnit {
-    NotBreakLine,
-    Character(u8),
-}
-
-#[derive(Debug, PartialEq)]
 pub enum RegexUnit {
     Character(u8),
     CharacterRange(u8, u8),
-    Not(Vec<u8>),
+    NotCharacter(u8),
+    NotUnits(Vec<RegexUnit>),
     UnitChoice(Vec<RegexUnit>),
     ItemList(Vec<RegexItem>),
     ItemChoice(Vec<RegexItem>),
@@ -77,19 +72,22 @@ impl ToString for RegexUnit {
                 r.push('-');
                 r.push(*e as char);
             }
-            RegexUnit::Not(list) => {
-                if list == &vec![b'\n'] {
-                    r.push('.');
-                } else {
-                    r.push_str("[^");
-                    for c in list {
-                        match c {
-                            b'\n' => r.push_str("\\n"),
-                            _ => r.push(*c as char),
-                        }
+            RegexUnit::NotCharacter(c) => {
+                match c {
+                    b'\n' => r.push('.'),
+                    _ => {
+                        r.push_str("[^");
+                        r.push(*c as char);
+                        r.push(']');
                     }
-                    r.push(']');
                 }
+            }
+            RegexUnit::NotUnits(list) => {
+                r.push_str("[^");
+                for i in list {
+                    r.push_str(&i.to_string());
+                }
+                r.push(']');
             }
             RegexUnit::UnitChoice(list) => {
                 r.push('[');
@@ -164,13 +162,32 @@ impl RegexUnit {
 
                 graph
             }
-            &RegexUnit::Not(ref list) => {
+            &RegexUnit::NotCharacter(c) => {
                 let mut graph = NFAGraph::new();
                 {
                     let end_id = graph.end_id();
                     let (start, _) = graph.nodes_mut();
 
-                    start.connect(end_id, Some(EdgeMatches::Not(list.clone())));
+                    start.connect(end_id, Some(EdgeMatches::NotCharacter(c)));
+                }
+
+                graph
+            }
+            &RegexUnit::NotUnits(ref list) => {
+                let mut graph = NFAGraph::new();
+                {
+                    let end_id = graph.end_id();
+                    let (start, _) = graph.nodes_mut();
+
+                    for item in list {
+                        match item {
+                            RegexUnit::Character(c) =>
+                                start.connect(end_id, Some(EdgeMatches::NotCharacter(*c))),
+                            RegexUnit::CharacterRange(s, e) =>
+                                start.connect(end_id, Some(EdgeMatches::NotRange(*s, *e))),
+                            _ => unimplemented!()
+                        }
+                    }
                 }
 
                 graph
@@ -319,7 +336,7 @@ impl<'s> RegexParser<'s> {
                 self.input.next();
 
                 Ok(RegexItem {
-                    unit: RegexUnit::Not(vec![b'\n']),
+                    unit: RegexUnit::NotCharacter(b'\n'),
                     annotation: self.parse_annotation(),
                 })
             }
