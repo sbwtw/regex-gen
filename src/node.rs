@@ -152,7 +152,28 @@ impl Edge {
             Some(EdgeMatches::Character(ch)) => c == ch,
             Some(EdgeMatches::Not(ref chs)) => !chs.contains(&c),
             Some(EdgeMatches::CharacterRange(s, e)) => c >= s && c <= e,
-            _ => false,
+            None => false,
+        }
+    }
+
+    pub fn intersect(&self, e: &Edge) -> bool {
+        if self.matches.is_none() || e.matches.is_none() {
+            return false;
+        }
+
+        let lhs = self.matches.as_ref().unwrap();
+        let rhs = e.matches.as_ref().unwrap();
+
+        match (lhs, rhs) {
+            (EdgeMatches::Character(c), _) => e.match_character(*c),
+            (EdgeMatches::Not(ref chs), _) => chs.iter().all(|x| !e.match_character(*x)),
+            (EdgeMatches::CharacterRange(ls, le), EdgeMatches::CharacterRange(rs, re)) => {
+                (rs <= ls && ls <= re) ||
+                (rs <= le && le <= re) ||
+                (ls <= rs && rs <= le) ||
+                (ls <= re && re <= le)
+            }
+            (EdgeMatches::CharacterRange(_, _), _) => e.intersect(self)
         }
     }
 }
@@ -202,7 +223,39 @@ mod test {
     use node::*;
 
     #[test]
-    fn test_edge_match() {
+    fn test_edge_intersect() {
+        let l = Edge::new(0, None);
+        let r = Edge::new(0, Some(EdgeMatches::Character(b'c')));
+        assert_eq!(l.intersect(&r), false);
+        assert_eq!(r.intersect(&l), false);
+
+        let l = Edge::new(0, Some(EdgeMatches::Character(b'c')));
+        assert_eq!(l.intersect(&r), true);
+        assert_eq!(r.intersect(&l), true);
+
+        let l = Edge::new(0, Some(EdgeMatches::CharacterRange(b'a', b'z')));
+        assert_eq!(l.intersect(&r), true);
+        assert_eq!(r.intersect(&l), true);
+
+        let r = Edge::new(0, Some(EdgeMatches::Not(vec![b'c'])));
+        assert_eq!(l.intersect(&r), false);
+        assert_eq!(r.intersect(&l), false);
+
+        let r = Edge::new(0, Some(EdgeMatches::CharacterRange(b'0', b'9')));
+        assert_eq!(l.intersect(&r), false);
+        assert_eq!(r.intersect(&l), false);
+
+        let r = Edge::new(0, Some(EdgeMatches::CharacterRange(b'd', b'f')));
+        assert_eq!(l.intersect(&r), true);
+        assert_eq!(r.intersect(&l), true);
+
+        let r = Edge::new(0, Some(EdgeMatches::CharacterRange(b'A', b'f')));
+        assert_eq!(l.intersect(&r), true);
+        assert_eq!(r.intersect(&l), true);
+    }
+
+    #[test]
+    fn test_edge_match_character() {
         let edge = Edge::new(0, None);
         assert_eq!(edge.match_character(b'c'), false);
 

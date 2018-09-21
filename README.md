@@ -32,7 +32,7 @@
 ```rust
 let r: RegexItem = r#"a\d+b"#.into();
 let mut t = TransTable::from_nfa(&r.nfa_graph());
-t.cut_epsilon();
+t.as_dfa();
 
 let ee = ExecuteEngine::with_transtable(t);
 assert_eq!(ee.exact_match("a"), false);
@@ -43,11 +43,11 @@ assert_eq!(ee.exact_match("a0b"), true);
 assert_eq!(ee.exact_match("a0123456789b"), true);
 ```
 
-### 生成正则描述的 NFA
+### 生成正则描述的 DFA
 ```rust
 let r: RegexItem = r#"a([b\d]?c|d)+"#.into();
 let mut t = TransTable::from_nfa(&r.nfa_graph());
-t.cut_epsilon();
+t.as_dfa();
 
 println!("{}", t.to_dot_graph());
 ```

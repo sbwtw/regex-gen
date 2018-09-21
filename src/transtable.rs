@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use node::*;
-use dot_graph::ToDotGraph;
 
 fn append_states(table: &mut TransTable, nfa: &NFAGraph) {
     table.states.insert(nfa.start_id());
@@ -46,8 +45,6 @@ impl TransTable {
         append_states(&mut r, nfa);
         append_trans(&mut r, nfa);
 
-        r.reset_state_mark();
-
         r
     }
 
@@ -71,7 +68,7 @@ impl TransTable {
         &self.trans
     }
 
-    pub fn cut_epsilon(&mut self) {
+    pub fn as_dfa(&mut self) {
         // mark epsilon move as end state
         {
             // collect state epsilon move
@@ -126,7 +123,7 @@ impl TransTable {
         }
     }
 
-    fn reset_state_mark(&mut self) {
+    pub fn reset_state_mark(&mut self) {
         let mut states: Vec<usize> = self.states.iter().map(|x| *x).collect();
         states.sort();
         let mut m = HashMap::new();
@@ -211,32 +208,6 @@ impl TransTable {
     }
 }
 
-impl ToDotGraph for TransTable {
-    fn to_dot_graph(&self) -> String {
-        let mut s = String::new();
-
-        s.push_str("digraph {\n");
-        s.push_str("\trankdir=LR;\n");
-        s.push_str(&format!("\tstart -> {};\n", self.start_id()));
-
-        for (state, edges) in self.trans.iter() {
-            for edge in edges.iter() {
-                s.push_str(&format!("\t{} -> {} [label=\"{}\"];\n", state, edge.next_node(), edge.matches().as_ref().unwrap().to_string()));
-            }
-        }
-
-        s.push_str("\tstart [shape=none,label=\"\",height=0,width=0]\n");
-
-        for state in self.end.iter() {
-            s.push_str(&format!("\t{} [peripheries=2]\n", state));
-        }
-
-        s.push_str("}\n");
-
-        s
-    }
-}
-
 impl fmt::Display for TransTable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "TransTable(start: {})", self.start)?;
@@ -292,14 +263,14 @@ mod test {
     fn test_cut_epsilon() {
         let r: RegexItem = r#"(a|b)+c"#.into();
         let mut t = TransTable::from_nfa(&r.nfa_graph());
-        t.cut_epsilon();
+        t.as_dfa();
         t.reset_state_mark();
         assert_eq!(t.state_count(), 4);
         assert_eq!(t.edge_count(), 8);
 
         let r: RegexItem = r#"([ab]+|c*)?"#.into();
         let mut t = TransTable::from_nfa(&r.nfa_graph());
-        t.cut_epsilon();
+        t.as_dfa();
         t.reset_state_mark();
         assert_eq!(t.state_count(), 4);
         assert_eq!(t.edge_count(), 8);

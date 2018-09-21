@@ -40,7 +40,7 @@ mod test {
     fn test_execute_engine() {
         let r: RegexItem = r#"a\d+b"#.into();
         let mut t = TransTable::from_nfa(&r.nfa_graph());
-        t.cut_epsilon();
+        t.as_dfa();
 
         let ee = ExecuteEngine::with_transtable(t);
         assert_eq!(ee.exact_match("a"), false);
@@ -49,6 +49,33 @@ mod test {
         assert_eq!(ee.exact_match("a0"), false);
         assert_eq!(ee.exact_match("a0b"), true);
         assert_eq!(ee.exact_match("a0123456789b"), true);
+
+        let r: RegexItem = r#"[ab]+\d?"#.into();
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.as_dfa();
+
+        let ee = ExecuteEngine::with_transtable(t);
+        assert_eq!(ee.exact_match("a"), true);
+        assert_eq!(ee.exact_match("ab"), true);
+        assert_eq!(ee.exact_match("aab"), true);
+        assert_eq!(ee.exact_match("a0"), true);
+        assert_eq!(ee.exact_match("a0b"), false);
+        assert_eq!(ee.exact_match("0b"), false);
+        assert_eq!(ee.exact_match("0"), false);
+        assert_eq!(ee.exact_match("00"), false);
+        assert_eq!(ee.exact_match("ba"), true);
+
+        let r: RegexItem = r#"(a+|b?)"#.into();
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.as_dfa();
+
+        let ee = ExecuteEngine::with_transtable(t);
+        assert_eq!(ee.exact_match("a"), true);
+        assert_eq!(ee.exact_match("aa"), true);
+        assert_eq!(ee.exact_match(""), true);
+        assert_eq!(ee.exact_match("b"), true);
+        assert_eq!(ee.exact_match("bb"), false);
+        assert_eq!(ee.exact_match("c"), false);
     }
 }
 
