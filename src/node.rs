@@ -84,8 +84,37 @@ impl NFAGraph {
 pub enum EdgeMatches {
     Character(u8),
     CharacterRange(u8, u8),
-    NotCharacter(u8),
-    NotRange(u8, u8),
+    Not(Vec<EdgeMatches>),
+}
+
+impl EdgeMatches {
+    fn match_character(&self, c: u8) -> bool {
+        match self {
+            &EdgeMatches::Character(ch) => c == ch,
+            &EdgeMatches::CharacterRange(s, e) => c >= s && c <= e,
+            &EdgeMatches::Not(ref list) => !list.iter().any(|x| x.match_character(c)),
+        }
+    }
+
+    fn intersect(&self, rhs: &EdgeMatches) -> bool {
+        match (self, rhs) {
+            // 定义在语言上的字符集是无限的，那么不可能有两个 Not 集合是不相交的。
+            // 在边处理的时候，需要把两个 Not 集合拆分并分别表示。
+            (EdgeMatches::Not(_), EdgeMatches::Not(_)) => true,
+            (EdgeMatches::Character(c), _) => rhs.match_character(*c),
+            (EdgeMatches::CharacterRange(ls, le), EdgeMatches::CharacterRange(rs, re)) => range_intersect(ls, le, rs, re),
+            (EdgeMatches::Not(_), EdgeMatches::CharacterRange(s, e)) => (*s..*e).all(|x| self.match_character(x)),
+            // swap rhs & lhs
+            _ => rhs.intersect(self),
+        }
+    }
+}
+
+fn range_intersect(ls: &u8, le: &u8, rs: &u8, re: &u8) -> bool {
+    (rs <= ls && ls <= re) ||
+    (rs <= le && le <= re) ||
+    (ls <= rs && rs <= le) ||
+    (ls <= re && re <= le)
 }
 
 #[inline]
@@ -101,8 +130,21 @@ impl ToString for EdgeMatches {
         match self {
             EdgeMatches::Character(c) => format!("{}", display(c)),
             EdgeMatches::CharacterRange(s, e) => format!("{}-{}", display(s), display(e)),
-            EdgeMatches::NotCharacter(c) => format!("Not {}", display(c)),
-            EdgeMatches::NotRange(s, e) => format!("Not {}-{}", display(s), display(e)),
+            EdgeMatches::Not(list) => {
+                let mut s = "Not ".to_string();
+                let mut iter = list.iter();
+
+                if let Some(item) = iter.next() {
+                    s.push_str(&item.to_string());
+                }
+
+                for item in iter.next() {
+                    s.push_str(", ");
+                    s.push_str(&item.to_string());
+                }
+
+                s
+            }
         }
     }
 }
@@ -137,39 +179,15 @@ impl Edge {
     }
 
     pub fn match_character(&self, c: u8) -> bool {
-        match self.matches {
-            Some(EdgeMatches::Character(ch)) => c == ch,
-            Some(EdgeMatches::NotCharacter(ch)) => c != ch,
-            Some(EdgeMatches::CharacterRange(s, e)) => c >= s && c <= e,
-            Some(EdgeMatches::NotRange(s, e)) => c < s || c > e,
-            None => false,
-        }
+        self.matches.as_ref().map_or(false, |ref x| x.match_character(c))
     }
 
     pub fn intersect(&self, e: &Edge) -> bool {
-        if self.matches.is_none() || e.matches.is_none() {
-            return false;
-        }
-
-        let lhs = self.matches.as_ref().unwrap();
-        let rhs = e.matches.as_ref().unwrap();
-
-        match (lhs, rhs) {
-            (EdgeMatches::Character(c), _) => e.match_character(*c),
-            (EdgeMatches::NotCharacter(c), _) => !e.match_character(*c),
-            (EdgeMatches::NotRange(_, _), EdgeMatches::NotRange(_, _)) => true,
-            (EdgeMatches::CharacterRange(ls, le), EdgeMatches::CharacterRange(rs, re)) => range_intersect(ls, le, rs, re),
-            (EdgeMatches::NotRange(ls, le), EdgeMatches::CharacterRange(rs, re)) => ls == rs && le == re,
-            _ => e.intersect(self),
+        match (self.matches.as_ref(), e.matches.as_ref()) {
+            (Some(lhs), Some(rhs)) => lhs.intersect(&rhs),
+            _ => false,
         }
     }
-}
-
-fn range_intersect(ls: &u8, le: &u8, rs: &u8, re: &u8) -> bool {
-    (rs <= ls && ls <= re) ||
-    (rs <= le && le <= re) ||
-    (ls <= rs && rs <= le) ||
-    (ls <= re && re <= le)
 }
 
 #[derive(Clone)]
@@ -231,7 +249,7 @@ mod test {
         assert_eq!(l.intersect(&r), true);
         assert_eq!(r.intersect(&l), true);
 
-        let r = Edge::new(0, Some(EdgeMatches::NotCharacter(b'c')));
+        let r = Edge::new(0, Some(EdgeMatches::Not(vec![EdgeMatches::Character(b'c')])));
         assert_eq!(l.intersect(&r), false);
         assert_eq!(r.intersect(&l), false);
 
@@ -264,12 +282,12 @@ mod test {
         assert_eq!(edge.match_character(b'5'), true);
         assert_eq!(edge.match_character(b'6'), false);
 
-        let edge = Edge::new(0, Some(EdgeMatches::NotCharacter(b'3')));
+        let edge = Edge::new(0, Some(EdgeMatches::Not(vec![EdgeMatches::Character(b'3')])));
         assert_eq!(edge.match_character(b'2'), true);
         assert_eq!(edge.match_character(b'3'), false);
         assert_eq!(edge.match_character(b'4'), true);
 
-        let edge = Edge::new(0, Some(EdgeMatches::NotRange(b'3', b'5')));
+        let edge = Edge::new(0, Some(EdgeMatches::Not(vec![EdgeMatches::CharacterRange(b'3', b'5')])));
         assert_eq!(edge.match_character(b'2'), true);
         assert_eq!(edge.match_character(b'3'), false);
         assert_eq!(edge.match_character(b'4'), false);

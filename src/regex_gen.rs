@@ -168,7 +168,7 @@ impl RegexUnit {
                     let end_id = graph.end_id();
                     let (start, _) = graph.nodes_mut();
 
-                    start.connect(end_id, Some(EdgeMatches::NotCharacter(c)));
+                    start.connect(end_id, Some(EdgeMatches::Not(vec![EdgeMatches::Character(c)])));
                 }
 
                 graph
@@ -179,15 +179,18 @@ impl RegexUnit {
                     let end_id = graph.end_id();
                     let (start, _) = graph.nodes_mut();
 
+                    let mut matches = vec![];
                     for item in list {
                         match item {
                             RegexUnit::Character(c) =>
-                                start.connect(end_id, Some(EdgeMatches::NotCharacter(*c))),
+                                matches.push(EdgeMatches::Character(*c)),
                             RegexUnit::CharacterRange(s, e) =>
-                                start.connect(end_id, Some(EdgeMatches::NotRange(*s, *e))),
+                                matches.push(EdgeMatches::CharacterRange(*s, *e)),
                             _ => unimplemented!()
                         }
                     }
+
+                    start.connect(end_id, Some(EdgeMatches::Not(matches)));
                 }
 
                 graph
@@ -375,8 +378,16 @@ impl<'s> RegexParser<'s> {
     fn parse_character_group(&mut self) -> RegexParserResult {
         assert_eq!(Some('['), self.input.next());
         let mut items = vec![];
+        let mut not = false;
 
-        // special process for first '-'
+        // special process for '^'
+        if let Some('^') = self.input.peek() {
+            self.input.next();
+
+            not = true;
+        }
+
+        // special process for '-'
         if let Some('-') = self.input.peek() {
             self.input.next();
 
@@ -428,8 +439,14 @@ impl<'s> RegexParser<'s> {
                     }
                 }
                 Some(']') => {
+                    let unit = if not {
+                        RegexUnit::NotUnits(items)
+                    } else {
+                        RegexUnit::UnitChoice(items)
+                    };
+
                     return Ok(RegexItem {
-                        unit: RegexUnit::UnitChoice(items),
+                        unit,
                         annotation: self.parse_annotation(),
                     })
                 }
@@ -514,6 +531,16 @@ mod test {
         let t = TransTable::from_nfa(&r.nfa_graph());
         assert_eq!(t.state_count(), 6);
         assert_eq!(t.edge_count(), 9);
+
+        let r: RegexItem = r#"[^a-z5]"#.into();
+        let t = TransTable::from_nfa(&r.nfa_graph());
+        assert_eq!(t.state_count(), 2);
+        assert_eq!(t.edge_count(), 1);
+
+        let r: RegexItem = r#"[^a-z5]+"#.into();
+        let t = TransTable::from_nfa(&r.nfa_graph());
+        assert_eq!(t.state_count(), 2);
+        assert_eq!(t.edge_count(), 2);
     }
 
     #[test]

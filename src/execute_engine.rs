@@ -37,6 +37,22 @@ mod test {
     use regex_gen::*;
 
     #[test]
+    fn test_execute_not() {
+        let r: RegexItem = r#"[^\dab]+"#.into();
+        let mut t = TransTable::from_nfa(&r.nfa_graph());
+        t.as_dfa();
+
+        let ee = ExecuteEngine::with_transtable(t);
+        assert_eq!(ee.exact_match("a"), false);
+        assert_eq!(ee.exact_match("ab"), false);
+        assert_eq!(ee.exact_match("aab"), false);
+        assert_eq!(ee.exact_match("a0"), false);
+        assert_eq!(ee.exact_match(""), false);
+        assert_eq!(ee.exact_match("c"), true);
+        assert_eq!(ee.exact_match("cc"), true);
+    }
+
+    #[test]
     fn test_execute_engine() {
         let r: RegexItem = r#"a\d+b"#.into();
         let mut t = TransTable::from_nfa(&r.nfa_graph());

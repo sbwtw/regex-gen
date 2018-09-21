@@ -219,6 +219,7 @@ impl fmt::Display for TransTable {
         for state in states.iter() {
             if self.end.contains(state) {
                 writeln!(f, "\tState {}*", state)?;
+            } else {
                 writeln!(f, "\tState {}", state)?;
             }
 
