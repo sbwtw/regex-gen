@@ -1,4 +1,6 @@
-# 目标
+# regex-gen [![Build Status](https://travis-ci.org/sbwtw/regex-gen.svg?branch=master)](https://travis-ci.org/sbwtw/regex-gen)
+
+## 目标
 - [x] 实现一个简单的正则引擎
 - [ ] 给出一个正则表达式，生成一段能够匹配对应字符串的 `rust` 代码
 - [ ] 给出一组正则描述，生成一个词法分析器(Lexer)。
