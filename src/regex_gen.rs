@@ -1,11 +1,8 @@
 use std::convert::From;
-use std::io;
-use std::io::Write;
 use std::iter::Peekable;
 use std::str::Chars;
 use std::string::ToString;
 
-use super::CodeGenerator;
 use node::*;
 
 #[derive(Debug, PartialEq)]
@@ -31,22 +28,6 @@ pub enum RegexAnnotation {
 pub struct RegexItem {
     unit: RegexUnit,
     annotation: RegexAnnotation,
-}
-
-impl CodeGenerator for RegexItem {
-    fn generate<W: Write>(&self, w: &mut W) -> io::Result<()> {
-        // function begin
-        writeln!(w, "fn match_regex<T: AsRef<str>>(s: T) -> bool {{")?;
-
-        writeln!(w, "let input = s.chars().peekable();")?;
-
-        // generate code
-
-        // function end
-        writeln!(w, "}}")?;
-
-        Ok(())
-    }
 }
 
 impl<'s> From<&'s str> for RegexItem {
@@ -146,7 +127,7 @@ impl RegexUnit {
                     let end_id = graph.end_id();
                     let (start, _) = graph.nodes_mut();
 
-                    start.connect(end_id, Some(EdgeMatches::Character(c)));
+                    start.connect(set![end_id], Some(EdgeMatches::Character(c)));
                 }
 
                 graph
@@ -157,7 +138,7 @@ impl RegexUnit {
                     let end_id = graph.end_id();
                     let (start, _) = graph.nodes_mut();
 
-                    start.connect(end_id, Some(EdgeMatches::CharacterRange(s, e)));
+                    start.connect(set![end_id], Some(EdgeMatches::CharacterRange(s, e)));
                 }
 
                 graph
@@ -168,7 +149,7 @@ impl RegexUnit {
                     let end_id = graph.end_id();
                     let (start, _) = graph.nodes_mut();
 
-                    start.connect(end_id, Some(EdgeMatches::Not(vec![EdgeMatches::Character(c)])));
+                    start.connect(set![end_id], Some(EdgeMatches::Not(vec![EdgeMatches::Character(c)])));
                 }
 
                 graph
@@ -190,7 +171,7 @@ impl RegexUnit {
                         }
                     }
 
-                    start.connect(end_id, Some(EdgeMatches::Not(matches)));
+                    start.connect(set![end_id], Some(EdgeMatches::Not(matches)));
                 }
 
                 graph
@@ -206,9 +187,9 @@ impl RegexUnit {
                         let mut g = item.nfa_graph();
 
                         // connect start to sub graph start
-                        start.connect(g.start_id(), None);
+                        start.connect(set![g.start_id()], None);
                         // connect sub graph to our end
-                        g.end_mut().connect(end_id, None);
+                        g.end_mut().connect(set![end_id], None);
 
                         sub_graphs.push(g);
                     }
@@ -229,7 +210,7 @@ impl RegexUnit {
 
                 for i in 0..(gs.len() - 1) {
                     let id = gs[i + 1].start_id();
-                    gs[i].end_mut().connect(id, None);
+                    gs[i].end_mut().connect(set![id], None);
                 }
 
                 // merge
@@ -250,9 +231,9 @@ impl RegexUnit {
                         let mut g = item.nfa_graph();
 
                         // connect start to sub graph start
-                        start.connect(g.start_id(), None);
+                        start.connect(set![g.start_id()], None);
                         // connect sub graph to our end
-                        g.end_mut().connect(end_id, None);
+                        g.end_mut().connect(set![end_id], None);
 
                         sub_graphs.push(g);
                     }
@@ -278,16 +259,16 @@ impl RegexItem {
         match self.annotation {
             RegexAnnotation::OneOrZero => {
                 // `?`
-                graph.start_mut().connect(end_id, None);
+                graph.start_mut().connect(set![end_id], None);
             }
             RegexAnnotation::GreaterZero => {
                 // `+`
-                graph.end_mut().connect(start_id, None);
+                graph.end_mut().connect(set![start_id], None);
             }
             RegexAnnotation::AnyOccurs => {
                 // '*'
-                graph.start_mut().connect(end_id, None);
-                graph.end_mut().connect(start_id, None);
+                graph.start_mut().connect(set![end_id], None);
+                graph.end_mut().connect(set![start_id], None);
             }
             RegexAnnotation::StandAlone => {}
         }
@@ -562,12 +543,5 @@ mod test {
         let s = r#".+"#;
         let r: RegexItem = s.into();
         assert_eq!(r.to_string(), s);
-    }
-
-    #[test]
-    fn test_write() {
-        let r: RegexItem = r#"abc"#.into();
-
-        r.generate(&mut io::stdout()).unwrap();
     }
 }

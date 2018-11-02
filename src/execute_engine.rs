@@ -17,16 +17,16 @@ impl ExecuteEngine {
         let mut state = self.transtable.start_id();
 
         while let Some(c) = s.next() {
-            let ref trans = self.transtable.trans_map().get(&state).unwrap();
+            let ref trans = self.transtable.trans_map().get(state).unwrap();
 
             if let Some(e) = trans.iter().find(|x| x.match_character(c as u8)) {
-                state = e.next_node();
+                state = &e.next_node();
             } else {
                 return false;
             }
         }
 
-        s.next().is_none() && self.transtable.end_set().contains(&state)
+        s.next().is_none() && self.transtable.end_set().contains(state)
     }
 }
 

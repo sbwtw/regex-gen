@@ -1,9 +1,19 @@
 
-use std::io;
-use std::io::Write;
+extern crate itertools;
 
-trait CodeGenerator {
-    fn generate<W: Write>(&self, w: &mut W) -> io::Result<()>;
+macro_rules! set {
+    ($($x: expr),*) => {
+        {
+            use std::collections::BTreeSet;
+
+            let mut s = BTreeSet::new();
+            $(
+                s.insert($x);
+            )*
+
+            s
+        }
+    };
 }
 
 pub mod regex_gen;

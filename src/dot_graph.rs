@@ -1,5 +1,6 @@
 
 use transtable::TransTable;
+use itertools::Itertools;
 
 pub trait ToDotGraph {
     fn to_dot_graph(&self) -> String;
@@ -11,18 +12,21 @@ impl ToDotGraph for TransTable {
 
         s.push_str("digraph {\n");
         s.push_str("\trankdir=LR;\n");
-        s.push_str(&format!("\tstart -> {};\n", self.start_id()));
+        s.push_str(&format!("\tstart -> {};\n", self.start_id().iter().join(",")));
 
         for (state, edges) in self.trans_map().iter() {
             for edge in edges.iter() {
-                s.push_str(&format!("\t{} -> {} [label=\"{}\"];\n", state, edge.next_node(), edge.matches().as_ref().unwrap().to_string()));
+                s.push_str(&format!("\t{} -> {} [label=\"{}\"];\n",
+                                    state.iter().join(","),
+                                    edge.next_node().iter().join(","),
+                                    edge.matches().as_ref().unwrap().to_string()));
             }
         }
 
         s.push_str("\tstart [shape=none,label=\"\",height=0,width=0]\n");
 
         for state in self.end_set().iter() {
-            s.push_str(&format!("\t{} [peripheries=2]\n", state));
+            s.push_str(&format!("\t{} [peripheries=2]\n", state.iter().join(",")));
         }
 
         s.push_str("}\n");

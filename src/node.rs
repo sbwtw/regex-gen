@@ -1,6 +1,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::BTreeSet;
 
 static ID_SEQ: AtomicUsize = AtomicUsize::new(0);
+
+pub type States = BTreeSet<usize>;
 
 pub struct NFAGraph {
     start: Node,
@@ -152,18 +155,18 @@ impl ToString for EdgeMatches {
 #[derive(Clone, Debug)]
 pub struct Edge {
     matches: Option<EdgeMatches>,
-    next_node: usize,
+    next_node: States,
 }
 
 impl Edge {
-    pub fn epsilon(next_node: usize) -> Edge {
+    pub fn epsilon(next_node: States) -> Edge {
         Edge {
             matches: None,
             next_node,
         }
     }
 
-    pub fn new(dest: usize, matches: Option<EdgeMatches>) -> Edge {
+    pub fn new(dest: States, matches: Option<EdgeMatches>) -> Edge {
         Edge {
             matches: matches,
             next_node: dest,
@@ -174,8 +177,8 @@ impl Edge {
         &self.matches
     }
 
-    pub fn next_node(&self) -> usize {
-        self.next_node
+    pub fn next_node(&self) -> &States {
+        &self.next_node
     }
 
     pub fn match_character(&self, c: u8) -> bool {
@@ -217,7 +220,7 @@ impl Node {
         self.id
     }
 
-    pub fn connect(&mut self, dest: usize, matches: Option<EdgeMatches>) {
+    pub fn connect(&mut self, dest: States, matches: Option<EdgeMatches>) {
         self.append_edge(Edge::new(dest, matches));
     }
 
@@ -236,58 +239,58 @@ mod test {
 
     #[test]
     fn test_edge_intersect() {
-        let l = Edge::new(0, None);
-        let r = Edge::new(0, Some(EdgeMatches::Character(b'c')));
+        let l = Edge::new(set![0], None);
+        let r = Edge::new(set![0], Some(EdgeMatches::Character(b'c')));
         assert_eq!(l.intersect(&r), false);
         assert_eq!(r.intersect(&l), false);
 
-        let l = Edge::new(0, Some(EdgeMatches::Character(b'c')));
+        let l = Edge::new(set![0], Some(EdgeMatches::Character(b'c')));
         assert_eq!(l.intersect(&r), true);
         assert_eq!(r.intersect(&l), true);
 
-        let l = Edge::new(0, Some(EdgeMatches::CharacterRange(b'a', b'z')));
+        let l = Edge::new(set![0], Some(EdgeMatches::CharacterRange(b'a', b'z')));
         assert_eq!(l.intersect(&r), true);
         assert_eq!(r.intersect(&l), true);
 
-        let r = Edge::new(0, Some(EdgeMatches::Not(vec![EdgeMatches::Character(b'c')])));
+        let r = Edge::new(set![0], Some(EdgeMatches::Not(vec![EdgeMatches::Character(b'c')])));
         assert_eq!(l.intersect(&r), false);
         assert_eq!(r.intersect(&l), false);
 
-        let r = Edge::new(0, Some(EdgeMatches::CharacterRange(b'0', b'9')));
+        let r = Edge::new(set![0], Some(EdgeMatches::CharacterRange(b'0', b'9')));
         assert_eq!(l.intersect(&r), false);
         assert_eq!(r.intersect(&l), false);
 
-        let r = Edge::new(0, Some(EdgeMatches::CharacterRange(b'd', b'f')));
+        let r = Edge::new(set![0], Some(EdgeMatches::CharacterRange(b'd', b'f')));
         assert_eq!(l.intersect(&r), true);
         assert_eq!(r.intersect(&l), true);
 
-        let r = Edge::new(0, Some(EdgeMatches::CharacterRange(b'A', b'f')));
+        let r = Edge::new(set![0], Some(EdgeMatches::CharacterRange(b'A', b'f')));
         assert_eq!(l.intersect(&r), true);
         assert_eq!(r.intersect(&l), true);
     }
 
     #[test]
     fn test_edge_match_character() {
-        let edge = Edge::new(0, None);
+        let edge = Edge::new(set![0], None);
         assert_eq!(edge.match_character(b'c'), false);
 
-        let edge = Edge::new(0, Some(EdgeMatches::Character(b'c')));
+        let edge = Edge::new(set![0], Some(EdgeMatches::Character(b'c')));
         assert_eq!(edge.match_character(b'c'), true);
         assert_eq!(edge.match_character(b'd'), false);
 
-        let edge = Edge::new(0, Some(EdgeMatches::CharacterRange(b'3', b'5')));
+        let edge = Edge::new(set![0], Some(EdgeMatches::CharacterRange(b'3', b'5')));
         assert_eq!(edge.match_character(b'2'), false);
         assert_eq!(edge.match_character(b'3'), true);
         assert_eq!(edge.match_character(b'4'), true);
         assert_eq!(edge.match_character(b'5'), true);
         assert_eq!(edge.match_character(b'6'), false);
 
-        let edge = Edge::new(0, Some(EdgeMatches::Not(vec![EdgeMatches::Character(b'3')])));
+        let edge = Edge::new(set![0], Some(EdgeMatches::Not(vec![EdgeMatches::Character(b'3')])));
         assert_eq!(edge.match_character(b'2'), true);
         assert_eq!(edge.match_character(b'3'), false);
         assert_eq!(edge.match_character(b'4'), true);
 
-        let edge = Edge::new(0, Some(EdgeMatches::Not(vec![EdgeMatches::CharacterRange(b'3', b'5')])));
+        let edge = Edge::new(set![0], Some(EdgeMatches::Not(vec![EdgeMatches::CharacterRange(b'3', b'5')])));
         assert_eq!(edge.match_character(b'2'), true);
         assert_eq!(edge.match_character(b'3'), false);
         assert_eq!(edge.match_character(b'4'), false);
